@@ -3,6 +3,7 @@ Intel 8085 Assembler / Disassembler / Simulator
 
 This is an assembler/disassembler for the Intel-8085 microprocessor.
 It can also simulate an Intel SDK-85 developers board (keyboard/display).
+This fork is intended to add simulation of PKW-3000 (keboard/display/serial?)
 
 Copyright (c) 2022 Dirk Prins
 
