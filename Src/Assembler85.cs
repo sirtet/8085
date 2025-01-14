@@ -1,4 +1,5 @@
-﻿using Microsoft.Win32;
+﻿using Microsoft.VisualBasic;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;   
 using System.Windows.Forms; 
@@ -2988,6 +2989,8 @@ namespace _8085
                     cycles += 4;
                 } else if (byteInstruction == 0xDB)                                                                         // IN
                 {
+                    MessageBox.Show("Encountered IN Instruction");
+                    return ("IN Instruction");
                     registerPC++;
                     registerA = PORT[RAM[registerPC]];
                     registerPC++;
@@ -4071,11 +4074,12 @@ namespace _8085
                 return ("Exception at memory location: " + registerPC.ToString("X") + ":\r\n" + exception.Message);
             }
 
+            /* excludes code that is not present in original assembly
             if (RAMprogramLine[startAddress] == -1)
             {
                 return("No valid instruction at address: 0x" + startAddress.ToString("X4"));
             }
-
+            */
             if (cycles > (UInt64.MaxValue - 20)) cycles = 0;
 
             nextAddress = registerPC;

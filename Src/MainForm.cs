@@ -1685,6 +1685,8 @@ namespace _8085
 
             while (!toolStripButtonFast.Enabled && (error == ""))
             {
+                //MessageBox.Show("curr: " + assembler85.RAMprogramLine[currentInstrAddress] + " next: " + assembler85.RAMprogramLine[nextInstrAddress]); // + assembler85.byteInstruction);
+
                 currentInstrAddress = nextInstrAddress;
                 error = assembler85.RunInstruction(currentInstrAddress, ref nextInstrAddress);
                 if (error == "")
@@ -1711,6 +1713,20 @@ namespace _8085
                 UpdateSerial();
                 UpdateTerminal();
             }
+            if (!toolStripButtonFast.Enabled && (error == "IN Instruction"))
+            {
+                //MessageBox.Show("IN");
+
+                toolStripButtonStop.Enabled = false;
+                toolStripButtonNew.Enabled = true;
+                toolStripButtonDebug.Enabled = true;
+                toolStripButtonRun.Enabled = true;
+                toolStripButtonFast.Enabled = true;
+                toolStripButtonStep.Enabled = true;
+                toolStripButtonReset.Enabled = true;
+                resetSimulatorToolStripMenuItem.Enabled = true;
+
+            }
             UInt16 startViewAddress = Convert.ToUInt16(memoryAddressLabels[0].Text, 16);
 
             if (!chkLock.Checked)
@@ -1728,7 +1744,7 @@ namespace _8085
             UpdateInterrupts();
             UpdateSerial();
             UpdateTerminal();
-
+            
             if (error == "")
             {
                 ChangeColorRTBLine(assembler85.RAMprogramLine[nextInstrAddress], false);
@@ -1740,7 +1756,20 @@ namespace _8085
                 toolStripButtonReset.Enabled = true;
                 resetSimulatorToolStripMenuItem.Enabled = true;
                 toolStripButtonDebug.Enabled = true;
-            } else if (error == "System Halted")
+            } else if (error == "IN Instruction")
+            {
+                toolStripButtonRun.Enabled = true;
+                toolStripButtonFast.Enabled = true;
+                toolStripButtonStep.Enabled = true;
+                toolStripButtonStop.Enabled = false;
+                toolStripButtonNew.Enabled = true;
+                toolStripButtonReset.Enabled = true;
+                resetSimulatorToolStripMenuItem.Enabled = true;
+                toolStripButtonDebug.Enabled = true;
+
+                ChangeColorRTBLine(assembler85.RAMprogramLine[currentInstrAddress], true);
+            }
+            else if (error == "System Halted")
             {
                 toolStripButtonRun.Enabled = false;
                 toolStripButtonFast.Enabled = false;
