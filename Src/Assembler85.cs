@@ -104,6 +104,30 @@ namespace _8085
         // Clock cycles executed
         public UInt64 cycles = 0;
 
+        public ISimulatedHardware Hardware { get; set; }
+        private int interruptEnableDelay;
+        private bool hardwareHalted;
+
+        private void WriteMemory(int address, byte value)
+        {
+            ushort busAddress = (ushort)address;
+            if (Hardware == null || Hardware.CanWriteMemory(busAddress)) RAM[busAddress] = value;
+        }
+
+        public void ResetHardwareCpu()
+        {
+            registerPC = 0; intrIE = false; intrP75 = intrP65 = intrP55 = false;
+            intrM75 = intrM65 = intrM55 = true;
+            interruptEnableDelay = 0; hardwareHalted = false; cycles = 0;
+        }
+
+        private void AdvanceHardware()
+        {
+            if (Hardware == null) return;
+            Hardware.Advance(cycles);
+            intrP75 |= Hardware.TakeInterrupt75();
+        }
+
         #endregion
 
         #region Constructor
@@ -601,7 +625,7 @@ namespace _8085
                     registerL = val;
                     break;
                 case 0b0110:
-                    RAM[registerH * 0x0100 + registerL] = val;
+                    WriteMemory(registerH * 0x0100 + registerL, val);
                     cycles += 1;
                     break;
                 case 0b0111:
@@ -2547,7 +2571,27 @@ namespace _8085
             registerPC = startAddress;
             string lo, hi;
 
+            if (Hardware != null)
+            {
+                AdvanceHardware();
+                if (intrIE && interruptEnableDelay == 0 && intrP75 && !intrM75)
+                {
+                    intrP75 = false; intrIE = false; hardwareHalted = false;
+                    WriteMemory(--registerSP, (byte)(registerPC >> 8));
+                    WriteMemory(--registerSP, (byte)registerPC);
+                    registerPC = nextAddress = 0x003C;
+                    cycles += 12;
+                    AdvanceHardware();
+                    return "";
+                }
+                if (hardwareHalted)
+                {
+                    cycles += 4; AdvanceHardware(); nextAddress = registerPC; return "";
+                }
+            }
+
             byteInstruction = RAM[registerPC];
+            ulong cyclesBeforeInstruction = cycles;
 
             try
             {
@@ -2606,9 +2650,9 @@ namespace _8085
                     registerPC++;
                     Get2ByteFromInt(registerPC, out lo, out hi);
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(hi, 16);
+                    WriteMemory(registerSP, Convert.ToByte(hi, 16));
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(lo, 16);
+                    WriteMemory(registerSP, Convert.ToByte(lo, 16));
                     registerPC = address;
                     cycles += 18;
                 } else if (byteInstruction == 0xDC)                                                                         // CC    
@@ -2623,9 +2667,9 @@ namespace _8085
                         registerPC++;
                         Get2ByteFromInt(registerPC, out lo, out hi);
                         registerSP--;
-                        RAM[registerSP] = Convert.ToByte(hi, 16);
+                        WriteMemory(registerSP, Convert.ToByte(hi, 16));
                         registerSP--;
-                        RAM[registerSP] = Convert.ToByte(lo, 16);
+                        WriteMemory(registerSP, Convert.ToByte(lo, 16));
                         registerPC = address;
                         cycles += 18;
                     } else
@@ -2647,9 +2691,9 @@ namespace _8085
                         registerPC++;
                         Get2ByteFromInt(registerPC, out lo, out hi);
                         registerSP--;
-                        RAM[registerSP] = Convert.ToByte(hi, 16);
+                        WriteMemory(registerSP, Convert.ToByte(hi, 16));
                         registerSP--;
-                        RAM[registerSP] = Convert.ToByte(lo, 16);
+                        WriteMemory(registerSP, Convert.ToByte(lo, 16));
                         registerPC = address;
                         cycles += 18;
                     } else
@@ -2696,9 +2740,9 @@ namespace _8085
                         registerPC++;
                         Get2ByteFromInt(registerPC, out lo, out hi);
                         registerSP--;
-                        RAM[registerSP] = Convert.ToByte(hi, 16);
+                        WriteMemory(registerSP, Convert.ToByte(hi, 16));
                         registerSP--;
-                        RAM[registerSP] = Convert.ToByte(lo, 16);
+                        WriteMemory(registerSP, Convert.ToByte(lo, 16));
                         registerPC = address;
                         cycles += 18;
                     }
@@ -2739,9 +2783,9 @@ namespace _8085
                         registerPC++;
                         Get2ByteFromInt(registerPC, out lo, out hi);
                         registerSP--;
-                        RAM[registerSP] = Convert.ToByte(hi, 16);
+                        WriteMemory(registerSP, Convert.ToByte(hi, 16));
                         registerSP--;
-                        RAM[registerSP] = Convert.ToByte(lo, 16);
+                        WriteMemory(registerSP, Convert.ToByte(lo, 16));
                         registerPC = address;
                         cycles += 18;
                     }
@@ -2757,9 +2801,9 @@ namespace _8085
                         registerPC++;
                         Get2ByteFromInt(registerPC, out lo, out hi);
                         registerSP--;
-                        RAM[registerSP] = Convert.ToByte(hi, 16);
+                        WriteMemory(registerSP, Convert.ToByte(hi, 16));
                         registerSP--;
-                        RAM[registerSP] = Convert.ToByte(lo, 16);
+                        WriteMemory(registerSP, Convert.ToByte(lo, 16));
                         registerPC = address;
                         cycles += 18;
                     } else
@@ -2793,9 +2837,9 @@ namespace _8085
                         registerPC++;
                         Get2ByteFromInt(registerPC, out lo, out hi);
                         registerSP--;
-                        RAM[registerSP] = Convert.ToByte(hi, 16);
+                        WriteMemory(registerSP, Convert.ToByte(hi, 16));
                         registerSP--;
-                        RAM[registerSP] = Convert.ToByte(lo, 16);
+                        WriteMemory(registerSP, Convert.ToByte(lo, 16));
                         registerPC = address;
                         cycles += 18;
                     }
@@ -2815,29 +2859,18 @@ namespace _8085
                         registerPC++;
                         address += (UInt16)(0x0100 * RAM[registerPC]);
                         registerPC++;
-                        registerA = RAM[address];
+                        WriteMemory(--registerSP, (byte)(registerPC >> 8));
+                        WriteMemory(--registerSP, (byte)registerPC);
+                        registerPC = address;
                         cycles += 18;
                     }
                 } else if (byteInstruction == 0x27)                                                                         // DAA 
                 {
-                    byte low = (byte)(registerA & 0x0F);
-                    byte high = (byte)(registerA & 0xF0);
-                    if ((low > 0x09) || flagAC)
-                    {
-                        low += 0x06;
-                        if (low > 0x0F)
-                        {
-                            if (high == 0xF0) flagC = true;
-                            high += 0x10;
-                            low = (byte)(low & 0x0F);
-                        }
-                    }
-                    if ((high > 0x90) || flagC)
-                    {
-                        flagC = true;
-                        high += 0x60;
-                    }
-                    registerA = (byte)(high * 0x0100 + low);
+                    bool decimalCarry = flagC || registerA > 0x99;
+                    byte correction = (byte)(((registerA & 0x0F) > 9 || flagAC ? 6 : 0) |
+                        (decimalCarry ? 0x60 : 0));
+                    registerA = Calculate(registerA, correction, 0, OPERATOR.ADD);
+                    flagC = decimalCarry;
                     registerPC++;
                     cycles += 4;
                 } else if (byteInstruction == 0x09)                                                                         // DAD B
@@ -2933,7 +2966,7 @@ namespace _8085
                 {
                     bool save_flag = flagC;
                     UInt16 address = (UInt16)(0x0100 * registerH + registerL);
-                    RAM[address] = Calculate(RAM[address], 0x01, 0, OPERATOR.SUB);
+                    WriteMemory(address, Calculate(RAM[address], 0x01, 0, OPERATOR.SUB));
                     flagC = save_flag;
                     registerPC++;
                     cycles += 10;
@@ -2976,23 +3009,26 @@ namespace _8085
                 } else if (byteInstruction == 0xF3)                                                                         // DI
                 {
                     intrIE = false; 
+                    interruptEnableDelay = 0;
                     registerPC++;
                     cycles += 4;
                 } else if (byteInstruction == 0x76)                                                                         // HLT
                 {
                     cycles += 5;
-                    return ("System Halted");
+                    if (Hardware == null) return ("System Halted");
+                    hardwareHalted = true;
+                    registerPC++;
                 } else if (byteInstruction == 0xFB)                                                                         // EI
                 {
                     intrIE = true;
+                    if (Hardware != null) interruptEnableDelay = 2;
                     registerPC++;
                     cycles += 4;
                 } else if (byteInstruction == 0xDB)                                                                         // IN
                 {
-                    MessageBox.Show("Encountered IN Instruction");
-                    return ("IN Instruction");
                     registerPC++;
-                    registerA = PORT[RAM[registerPC]];
+                    registerA = Hardware == null ? PORT[RAM[registerPC]] : Hardware.ReadPort(RAM[registerPC], cycles + 10);
+                    PORT[RAM[registerPC]] = registerA;
                     registerPC++;
                     cycles += 10;
                 } else if (byteInstruction == 0x3C)                                                                         // INR A
@@ -3049,7 +3085,7 @@ namespace _8085
                     bool save_flag = flagC;
                     UInt16 address = 0;
                     address = (UInt16)(0x0100 * registerH + registerL);
-                    RAM[address] = Calculate(RAM[address], 0x01, 0, OPERATOR.ADD);
+                    WriteMemory(address, Calculate(RAM[address], 0x01, 0, OPERATOR.ADD));
                     flagC = save_flag;
                     registerPC++;
                     cycles += 10;
@@ -3333,7 +3369,7 @@ namespace _8085
                         result = GetRegisterValue((byte)(num & 0x07), ref val);
                         if (!result) return ("Can't get the register value");
                         UInt16 address = (UInt16)(0x0100 * registerH + registerL);
-                        RAM[address] = val;
+                        WriteMemory(address, val);
                         registerPC++;
                         cycles += 7;
                     } else
@@ -3361,7 +3397,7 @@ namespace _8085
                         UInt16 address = (UInt16)(0x0100 * registerH + registerL);
                         registerPC++;
                         val = RAM[registerPC];
-                        RAM[address] = val;
+                        WriteMemory(address, val);
                         registerPC++;
                         cycles += 10;
                     } else
@@ -3397,6 +3433,7 @@ namespace _8085
                 {
                     registerPC++;
                     PORT[RAM[registerPC]] = registerA;
+                    if (Hardware != null) Hardware.WritePort(RAM[registerPC], registerA, cycles + 10);
                     registerPC++;
                     cycles += 10;
                 } else if (byteInstruction == 0xE9)                                                                         // PCHL
@@ -3450,25 +3487,25 @@ namespace _8085
                 } else if (byteInstruction == 0xC5)                                                                         // PUSH B
                 {
                     registerSP--;
-                    RAM[registerSP] = registerB;
+                    WriteMemory(registerSP, registerB);
                     registerSP--;
-                    RAM[registerSP] = registerC;
+                    WriteMemory(registerSP, registerC);
                     registerPC++;
                     cycles += 12;
                 } else if (byteInstruction == 0xD5)                                                                         // PUSH D
                 {
                     registerSP--;
-                    RAM[registerSP] = registerD;
+                    WriteMemory(registerSP, registerD);
                     registerSP--;
-                    RAM[registerSP] = registerE;
+                    WriteMemory(registerSP, registerE);
                     registerPC++;
                     cycles += 12;
                 } else if (byteInstruction == 0xE5)                                                                         // PUSH H
                 {
                     registerSP--;
-                    RAM[registerSP] = registerH;
+                    WriteMemory(registerSP, registerH);
                     registerSP--;
-                    RAM[registerSP] = registerL;
+                    WriteMemory(registerSP, registerL);
                     registerPC++;
                     cycles += 12;
                 } else if (byteInstruction == 0xF5)                                                                         // PUSH PSW 
@@ -3480,9 +3517,9 @@ namespace _8085
                     if (flagP) aflag += 0x04;
                     if (flagC) aflag += 0x01;
                     registerSP--;
-                    RAM[registerSP] = registerA;
+                    WriteMemory(registerSP, registerA);
                     registerSP--;
-                    RAM[registerSP] = aflag;
+                    WriteMemory(registerSP, aflag);
                     registerPC++;
                     cycles += 12;
                 } else if (byteInstruction == 0x17)                                                                         // RAL 
@@ -3686,9 +3723,9 @@ namespace _8085
                     registerPC++;
                     Get2ByteFromInt(registerPC, out lo, out hi);
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(hi, 16);
+                    WriteMemory(registerSP, Convert.ToByte(hi, 16));
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(lo, 16);
+                    WriteMemory(registerSP, Convert.ToByte(lo, 16));
                     registerPC = 0x0000;
                     cycles += 12;
                 } else if (byteInstruction == 0xCF)                                                                         // RST 1
@@ -3696,9 +3733,9 @@ namespace _8085
                     registerPC++;
                     Get2ByteFromInt(registerPC, out lo, out hi);
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(hi, 16);
+                    WriteMemory(registerSP, Convert.ToByte(hi, 16));
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(lo, 16);
+                    WriteMemory(registerSP, Convert.ToByte(lo, 16));
                     registerPC = 0x0008;
                     cycles += 12;
                 } else if (byteInstruction == 0xD7)                                                                         // RST 2
@@ -3706,9 +3743,9 @@ namespace _8085
                     registerPC++;
                     Get2ByteFromInt(registerPC, out lo, out hi);
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(hi, 16);
+                    WriteMemory(registerSP, Convert.ToByte(hi, 16));
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(lo, 16);
+                    WriteMemory(registerSP, Convert.ToByte(lo, 16));
                     registerPC = 0x0010;
                     cycles += 12;
                 } else if (byteInstruction == 0xDF)                                                                         // RST 3
@@ -3716,9 +3753,9 @@ namespace _8085
                     registerPC++;
                     Get2ByteFromInt(registerPC, out lo, out hi);
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(hi, 16);
+                    WriteMemory(registerSP, Convert.ToByte(hi, 16));
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(lo, 16);
+                    WriteMemory(registerSP, Convert.ToByte(lo, 16));
                     registerPC = 0x0018;
                     cycles += 12;
                 } else if (byteInstruction == 0xE7)                                                                         // RST 4
@@ -3726,9 +3763,9 @@ namespace _8085
                     registerPC++;
                     Get2ByteFromInt(registerPC, out lo, out hi);
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(hi, 16);
+                    WriteMemory(registerSP, Convert.ToByte(hi, 16));
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(lo, 16);
+                    WriteMemory(registerSP, Convert.ToByte(lo, 16));
                     registerPC = 0x0020;
                     cycles += 12;
                 } else if (byteInstruction == 0xEF)                                                                         // RST 5
@@ -3736,9 +3773,9 @@ namespace _8085
                     registerPC++;
                     Get2ByteFromInt(registerPC, out lo, out hi);
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(hi, 16);
+                    WriteMemory(registerSP, Convert.ToByte(hi, 16));
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(lo, 16);
+                    WriteMemory(registerSP, Convert.ToByte(lo, 16));
                     registerPC = 0x0028;
                     cycles += 12;
                 } else if (byteInstruction == 0xF7)                                                                         // RST 6
@@ -3746,9 +3783,9 @@ namespace _8085
                     registerPC++;
                     Get2ByteFromInt(registerPC, out lo, out hi);
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(hi, 16);
+                    WriteMemory(registerSP, Convert.ToByte(hi, 16));
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(lo, 16);
+                    WriteMemory(registerSP, Convert.ToByte(lo, 16));
                     registerPC = 0x0030;
                     cycles += 12;
                 } else if (byteInstruction == 0xFF)                                                                         // RST 7
@@ -3756,9 +3793,9 @@ namespace _8085
                     registerPC++;
                     Get2ByteFromInt(registerPC, out lo, out hi);
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(hi, 16);
+                    WriteMemory(registerSP, Convert.ToByte(hi, 16));
                     registerSP--;
-                    RAM[registerSP] = Convert.ToByte(lo, 16);
+                    WriteMemory(registerSP, Convert.ToByte(lo, 16));
                     registerPC = 0x0038;
                     cycles += 12;
                 } else if (byteInstruction == 0xC8)                                                                         // RZ
@@ -3800,12 +3837,13 @@ namespace _8085
                     registerPC++;
                     address += (UInt16)(0x0100 * RAM[registerPC]);
                     registerPC++;
-                    RAM[address] = registerL;
+                    WriteMemory(address, registerL);
                     address++;
-                    RAM[address] = registerH;
+                    WriteMemory(address, registerH);
                     cycles += 16;
                 } else if (byteInstruction == 0x30)                                                                         // SIM
                 {
+                    if ((registerA & 0x10) != 0) intrP75 = false;
                     if ((registerA & 0x08) == 0x08)
                     {
                         intrM55 = (registerA & 0x01) == 0x01 ? true : false;
@@ -3831,7 +3869,7 @@ namespace _8085
                     address = RAM[registerPC];
                     registerPC++;
                     address += (UInt16)(0x0100 * RAM[registerPC]);
-                    RAM[address] = registerA;
+                    WriteMemory(address, registerA);
                     registerPC++;
                     if (address == 0x1800) writeToDisplay = true;
                     cycles += 13;
@@ -3840,7 +3878,7 @@ namespace _8085
                     UInt16 address;
                     address = registerC;
                     address = (UInt16)(address + (0x0100 * registerB));
-                    RAM[address] = registerA;
+                    WriteMemory(address, registerA);
                     registerPC++;
                     cycles += 7;
                 } else if (byteInstruction == 0x12)                                                                         // STAX D
@@ -3848,7 +3886,7 @@ namespace _8085
                     UInt16 address;
                     address = registerE;
                     address = (UInt16)(address + (0x0100 * registerD));
-                    RAM[address] = registerA;
+                    WriteMemory(address, registerA);
                     registerPC++;
                     cycles += 7;
                 } else if (byteInstruction == 0x37)                                                                         // STC
@@ -3903,9 +3941,9 @@ namespace _8085
                     t1 = registerL;
                     t2 = registerH;
                     registerL = RAM[registerSP];
-                    RAM[registerSP] = t1;
+                    WriteMemory(registerSP, t1);
                     registerH = RAM[registerSP + 1];
-                    RAM[registerSP + 1] = t2;
+                    WriteMemory(registerSP + 1, t2);
                     registerPC++;
                     cycles += 16;
                 } else if (byteInstruction == 0x10)                                                                         // ARHL (UNDOCUMENTED)
@@ -4045,9 +4083,9 @@ namespace _8085
                     {
                         Get2ByteFromInt(registerPC, out lo, out hi);
                         registerSP--;
-                        RAM[registerSP] = Convert.ToByte(hi, 16);
+                        WriteMemory(registerSP, Convert.ToByte(hi, 16));
                         registerSP--;
-                        RAM[registerSP] = Convert.ToByte(lo, 16);
+                        WriteMemory(registerSP, Convert.ToByte(lo, 16));
                         registerPC = 0x0040;
                         cycles += 12;
                     } else
@@ -4060,9 +4098,9 @@ namespace _8085
                     UInt16 address = 0;
                     address = (UInt16)(registerD * 0x100);
                     address += registerE;
-                    RAM[address] = registerL;
+                    WriteMemory(address, registerL);
                     address++;
-                    RAM[address] = registerH;
+                    WriteMemory(address, registerH);
                     registerPC++;
                     cycles += 10;
                 } else
@@ -4083,6 +4121,15 @@ namespace _8085
             if (cycles > (UInt64.MaxValue - 20)) cycles = 0;
 
             nextAddress = registerPC;
+            // Intel 8085 conditional CALL: 18/9 T-states; RET: 12/6.
+            // The inherited implementation used 17 and 11 for untaken branches.
+            if ((byteInstruction & 0xC7) == 0xC4 && cycles - cyclesBeforeInstruction == 17)
+                cycles = cyclesBeforeInstruction + 9;
+            if ((byteInstruction & 0xC7) == 0xC0 && cycles - cyclesBeforeInstruction == 11)
+                cycles = cyclesBeforeInstruction + 6;
+            if (byteInstruction == 0x2F) cycles = cyclesBeforeInstruction + 4; // CMA
+            if (interruptEnableDelay > 0) interruptEnableDelay--;
+            AdvanceHardware();
             return "";
         }
 

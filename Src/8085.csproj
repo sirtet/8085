@@ -119,6 +119,8 @@
       <DependentUpon>MainForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
+    <Compile Include="ISimulatedHardware.cs" />
+    <Compile Include="Pkw3000Hardware.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="FormAddresses.resx">
       <DependentUpon>FormAddresses.cs</DependentUpon>
