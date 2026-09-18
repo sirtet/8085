@@ -68,12 +68,15 @@ namespace _8085
                 pkwWindow = new FormPkw3000(); pkwWindow.Bind(pkwBoard);
                 pkwWindow.ResetRequested += (s, e) => {
                     if (assembler85 == null) return;
-                    stop_Click(this, EventArgs.Empty);
+                    // Reset in place: an active Run timer or Fast loop continues, a paused CPU remains paused.
                     byte[] buffer = pkwBoard.BufferRam;
                     assembler85.ResetHardwareCpu(); AttachPkwBoard();
                     Array.Copy(buffer, pkwBoard.BufferRam, buffer.Length);
                     nextInstrAddress = 0; tbSetProgramCounter.Text = "0000";
-                    UpdateRegisters(); UpdateInterrupts(); UpdateDisplay();
+                    assembler85.ClearPorts();
+                    if (formTerminal != null) { formTerminal.keyBuffer = ""; formTerminal.UpdateBufferText(0, ""); }
+                    tbCycles.Text = "0";
+                    UpdateRegisters(); UpdateFlags(); UpdateInterrupts(); UpdatePortPanel(); UpdateDisplay();
                 };
                 pkwWindow.FormClosed += (s, e) => { pkwWindow = null; chkSDK85.Checked = false; };
                 pkwWindow.Show(this);

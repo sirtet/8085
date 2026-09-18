@@ -37,6 +37,38 @@ static class Pkw3000Tests
         try
         {
             if (args.Length < 1) throw new ArgumentException("Usage: Pkw3000Tests.exe <original ROM.bin> [hellorld.asm]");
+            if (args.Contains("--display-audit"))
+            {
+                var bytes = File.ReadAllBytes(args[0]);
+                int sourceIndex = Array.IndexOf(args, "--firmware");
+                if (sourceIndex >= 0)
+                {
+                    var assembled = new Assembler85(File.ReadAllLines(args[sourceIndex + 1]));
+                    Check(assembled.FirstPass() == "OK" && assembled.SecondPass() == "OK", "display audit firmware assembles");
+                    bytes = assembled.RAM;
+                }
+                foreach (var key in new[] { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F", "LOD", "ERS", "JOB", "PRG", "-", "CMP", "SET" })
+                {
+                    var hw = new Pkw3000Hardware(); var machine = new Assembler85(new string[0]) { Hardware = hw };
+                    Array.Copy(bytes, machine.RAM, bytes.Length); Run(machine, 3000000);
+                    Press(machine, hw, key);
+                    Console.WriteLine("AUDIT " + key + " RAM=" + BitConverter.ToString(machine.RAM, 0x6070, 8));
+                    Press(machine, hw, "2");
+                }
+                {
+                    var hw = new Pkw3000Hardware(); var machine = new Assembler85(new string[0]) { Hardware = hw };
+                    Array.Copy(bytes, machine.RAM, bytes.Length); Run(machine, 3000000); hw.SetKey("C", true);
+                    var seen = new System.Collections.Generic.HashSet<string>();
+                    for (int n = 0; n < 3000; n++) { Run(machine, 1000); string value = Display(hw); if (seen.Add(value)) Console.WriteLine("TRANSIENT " + value + " PC=" + machine.registerPC.ToString("X4")); }
+                }
+                for (int vertical = 0; vertical < 3; vertical++) for (int horizontal = 0; horizontal < 3; horizontal++)
+                {
+                    var hw = new Pkw3000Hardware { SwitchInputs = (byte)(((3 - vertical) << 4) | ((3 - horizontal) << 2)) };
+                    var machine = new Assembler85(new string[0]) { Hardware = hw }; Array.Copy(bytes, machine.RAM, bytes.Length); Run(machine, 3000000);
+                    Console.WriteLine("SELECT vertical=" + vertical + " horizontal=" + horizontal + " input=" + hw.SwitchInputs.ToString("X2") + " display=" + Display(hw));
+                }
+                return 0;
+            }
             if (args.Contains("--perf-only")) { FastPerformance(args[0]); return 0; }
             int firmwareIndex = Array.IndexOf(args, "--firmware");
             if (args.Contains("--terminal-e2e"))
@@ -53,6 +85,9 @@ static class Pkw3000Tests
                 var hardware = new Pkw3000Hardware(); assembled.Hardware = hardware;
                 Run(assembled, 3000000);
                 Check(hardware.TimerPulses > 400, "existing firmware ASM boots with hardware timer");
+                Press(assembled, hardware, "C");
+                Check(hardware.DisplaySegments(0) == 0x40 && hardware.DisplaySegments(1) == 0x66,
+                    "invalid first key in firmware ASM returns to dash/type display without stack corruption");
             }
             Check(FormTerminal.NormalizeInput("X4\r\nABC\n\x16\x14") == "X4\rABC\r", "paste normalizes line endings and excludes shortcut/control artifacts");
             CpuRegression();
@@ -156,6 +191,39 @@ static class Pkw3000Tests
             Invoke(main, "startFast_Click", main, EventArgs.Empty);
             Check(cpu.cycles == beforeFast + 10 && cpu.registerPC == 12, "batched Fast stops at exact breakpoint instruction");
             breakpointField.SetValue(main, -1);
+            var front = (FormPkw3000)Field(main, "pkwWindow");
+            var vertical = (System.Windows.Forms.TrackBar)Field(front, "selectorVertical");
+            var horizontal = (System.Windows.Forms.TrackBar)Field(front, "selectorHorizontal");
+            for (int v = 0; v < 3; v++) for (int h = 0; h < 3; h++)
+            {
+                vertical.Value = v; horizontal.Value = h;
+                Check(((Pkw3000Hardware)cpu.Hardware).SwitchInputs == ((3 - v) << 4 | (3 - h) << 2),
+                    "front panel selector wiring " + v + "/" + h);
+            }
+            var reset = (System.Windows.Forms.Button)FindKey(front, "RST");
+            ((Pkw3000Hardware)cpu.Hardware).BufferRam[123] = 0xA5;
+            cpu.RAM[0x6090] = 0xC7;
+            reset.PerformClick();
+            Check(cpu.registerPC == 0 && cpu.cycles == 0 && cpu.RAM[0x6090] == 0xC7 &&
+                ((Pkw3000Hardware)cpu.Hardware).BufferRam[123] == 0xA5 &&
+                ((System.Windows.Forms.ToolStripButton)Field(main, "toolStripButtonFast")).Enabled,
+                "paused hardware reset resets CPU without erasing RAM or starting execution");
+            Invoke(main, "startRun_Click", main, EventArgs.Empty);
+            reset.PerformClick();
+            Check(((System.Windows.Forms.Timer)Field(main, "timer")).Enabled, "hardware reset preserves Run timer");
+            Invoke(main, "stop_Click", main, EventArgs.Empty);
+            bool resetDuringFast = false;
+            var resetWatch = System.Diagnostics.Stopwatch.StartNew();
+            using (var resetTimer = new System.Windows.Forms.Timer { Interval = 15 })
+            {
+                resetTimer.Tick += (s, e) => {
+                    if (!resetDuringFast && cpu.cycles >= 100000) { reset.PerformClick(); resetDuringFast = true; }
+                    else if (cpu.cycles >= 100000 || resetWatch.ElapsedMilliseconds > 5000)
+                    { resetTimer.Stop(); Invoke(main, "stop_Click", main, EventArgs.Empty); }
+                };
+                resetTimer.Start(); Invoke(main, "startFast_Click", main, EventArgs.Empty);
+            }
+            Check(resetDuringFast && cpu.cycles >= 100000, "Fast continues executing after front-panel reset");
             var terminalCheck = (System.Windows.Forms.CheckBox)Field(main, "chkTerminal"); terminalCheck.Checked = true;
             var terminal = (FormTerminal)Field(main, "formTerminal");
             Check(terminal.BaudRate == 4800, "existing terminal opens at PKW baud rate");
@@ -267,7 +335,7 @@ static class Pkw3000Tests
             foreach (System.Windows.Forms.Form owned in main.OwnedForms) { owned.ShowInTaskbar = false; owned.Location = main.Location; }
             var panel = (FormPkw3000)Field(main, "pkwWindow");
             var keys = new[] { "JOB", "E", "SET" };
-            int stage = 0; ulong deadline = 3000000; bool answered = false, driving = false; Exception failure = null;
+            int stage = -2; ulong deadline = 3000000; long wallDeadline = 0; bool answered = false, driving = false; Exception failure = null;
             var watch = System.Diagnostics.Stopwatch.StartNew();
             using (var drive = new System.Windows.Forms.Timer { Interval = 15 })
             {
@@ -277,7 +345,24 @@ static class Pkw3000Tests
                     try
                     {
                         if (watch.ElapsedMilliseconds > 15000) throw new Exception("E2E timeout stage " + stage);
-                        if (cpu.cycles < deadline) return;
+                        if (cpu.cycles < deadline || watch.ElapsedMilliseconds < wallDeadline) return;
+                        if (stage < 0)
+                        {
+                            Invoke(FindKey(panel, "C"), stage == -2 ? "OnMouseDown" : "OnMouseUp",
+                                new System.Windows.Forms.MouseEventArgs(System.Windows.Forms.MouseButtons.Left, 1, 4, 4, 0));
+                            stage++; deadline = cpu.cycles + 3000000; wallDeadline = watch.ElapsedMilliseconds + 1000; return;
+                        }
+                        if (stage == 0)
+                        {
+                            Check(hw.DisplaySegments(0) == 0x40 && hw.DisplaySegments(1) == 0x66,
+                                "E2E slow mouse key restores dash/type display: " + (sourcePath ?? "original ROM"));
+                            panel.RefreshHardware();
+                            using (var bitmap = new System.Drawing.Bitmap(panel.Width, panel.Height))
+                            {
+                                panel.DrawToBitmap(bitmap, new System.Drawing.Rectangle(0, 0, panel.Width, panel.Height));
+                                bitmap.Save(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, sourcePath == null ? "display-rom.png" : "display-asm.png"));
+                            }
+                        }
                         if (stage < 6)
                         {
                             var key = FindKey(panel, keys[stage / 2]);
@@ -332,6 +417,21 @@ static class Pkw3000Tests
     }
     static void CpuRegression()
     {
+        for (int condition = 0; condition < 8; condition++) for (int flags = 0; flags < 16; flags++)
+        {
+            var test = new Assembler85(new string[0]);
+            test.flagZ = (flags & 1) != 0; test.flagC = (flags & 2) != 0;
+            test.flagP = (flags & 4) != 0; test.flagS = (flags & 8) != 0;
+            bool taken = new[] { !test.flagZ, test.flagZ, !test.flagC, test.flagC,
+                !test.flagP, test.flagP, !test.flagS, test.flagS }[condition];
+            test.RAM[0] = (byte)(0xC4 + condition * 8); test.RAM[1] = 0x34; test.RAM[2] = 0x12;
+            test.registerSP = 0x6040; test.registerA = 0x55; Step(test);
+            if (test.registerPC != (taken ? 0x1234 : 3) || test.registerSP != (taken ? 0x603E : 0x6040) ||
+                test.registerA != 0x55 || test.cycles != (taken ? 18UL : 9UL) ||
+                (taken && (test.RAM[0x603E] != 3 || test.RAM[0x603F] != 0)))
+                throw new Exception("conditional CALL regression: condition=" + condition + " flags=" + flags);
+        }
+        Check(true, "all eight conditional CALLs: target, stack, accumulator and timing across 16 flag combinations");
         var cpu = new Assembler85(new string[0]);
         cpu.RAM[0] = 0xCC; cpu.RAM[1] = 0x34; cpu.RAM[2] = 0x12;
         cpu.registerA = 0x55; cpu.registerSP = 0x6040; cpu.flagZ = true; Step(cpu);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -13,7 +13,10 @@ namespace _8085
         private readonly ToolTip tips = new ToolTip();
         private readonly Image artwork;
         private Action updateSwitches;
-        private int switch1 = 1, switch2 = 1;
+        private readonly TrackBar selectorVertical = new TrackBar { Name = "S1Selector", Minimum = 0, Maximum = 2, Value = 1,
+            Orientation = Orientation.Vertical, TickStyle = TickStyle.Both, SmallChange = 1, LargeChange = 1, AutoSize = false };
+        private readonly TrackBar selectorHorizontal = new TrackBar { Name = "S2Selector", Minimum = 0, Maximum = 2, Value = 1,
+            Orientation = Orientation.Horizontal, TickStyle = TickStyle.Both, SmallChange = 1, LargeChange = 1, AutoSize = false };
         public event EventHandler ResetRequested;
 
         public FormPkw3000()
@@ -49,17 +52,15 @@ namespace _8085
                     key.KeyUp += (s, e) => { if (e.KeyCode == Keys.Space) board?.SetKey(name, false); };
                 }
             }
-            var s1 = new Button { Text = "↕", FlatStyle = FlatStyle.Flat };
-            var s2 = new Button { Text = "↔", FlatStyle = FlatStyle.Flat };
-            Place(s1, new Rectangle(380, 303, 20, 26)); Place(s2, new Rectangle(465, 354, 27, 19));
+            Place(selectorVertical, new Rectangle(375, 289, 30, 58));
+            Place(selectorHorizontal, new Rectangle(442, 347, 67, 29));
             updateSwitches = () => {
-                tips.SetToolTip(s1, "S1: " + new[] { "down", "middle", "upper" }[switch1] + " (click to change)");
-                tips.SetToolTip(s2, "S2: " + new[] { "left", "middle", "right" }[switch2] + " (click to change)");
-                s1.Text = new[] { "↓", "↕", "↑" }[switch1]; s2.Text = new[] { "←", "↔", "→" }[switch2];
+                tips.SetToolTip(selectorVertical, "S1: " + new[] { "down", "middle", "up" }[selectorVertical.Value]);
+                tips.SetToolTip(selectorHorizontal, "S2: " + new[] { "left", "middle", "right" }[selectorHorizontal.Value]);
                 ApplySwitches();
             };
-            s1.Click += (s, e) => { switch1 = (switch1 + 1) % 3; updateSwitches(); };
-            s2.Click += (s, e) => { switch2 = (switch2 + 1) % 3; updateSwitches(); };
+            selectorVertical.ValueChanged += (s, e) => updateSwitches();
+            selectorHorizontal.ValueChanged += (s, e) => updateSwitches();
             updateSwitches();
             Resize += (s, e) => LayoutPanel(); LayoutPanel();
             Deactivate += (s, e) => board?.ReleaseKeys();
@@ -80,14 +81,18 @@ namespace _8085
             }
         }
         private void ApplySwitches()
-        { if (board != null) board.SwitchInputs = (byte)(((3 - switch1) << 2) | ((3 - switch2) << 4)); }
+        { if (board != null) board.SwitchInputs = (byte)(((3 - selectorVertical.Value) << 4) | ((3 - selectorHorizontal.Value) << 2)); }
         internal void Bind(Pkw3000Hardware hardware)
         {
             board = hardware;
             if (board != null)
             {
-                switch1 = Math.Max(0, Math.Min(2, 3 - ((board.SwitchInputs >> 2) & 3)));
-                switch2 = Math.Max(0, Math.Min(2, 3 - ((board.SwitchInputs >> 4) & 3)));
+                byte saved = board.SwitchInputs;
+                // Detach while restoring the controls, so the first ValueChanged does not alter the second field.
+                board = null;
+                selectorVertical.Value = Math.Max(0, Math.Min(2, 3 - ((saved >> 4) & 3)));
+                selectorHorizontal.Value = Math.Max(0, Math.Min(2, 3 - ((saved >> 2) & 3)));
+                board = hardware;
             }
             updateSwitches(); RefreshHardware();
         }

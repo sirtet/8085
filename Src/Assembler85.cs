@@ -2760,9 +2760,11 @@ namespace _8085
                         registerPC++;
                         address += RAM[registerPC];
                         registerPC++;
-                        address += (UInt16)(0x0100 * RAM[registerPC++]);
+                        address += (UInt16)(0x0100 * RAM[registerPC]);
                         registerPC++;
-                        registerA = RAM[address];
+                        WriteMemory(--registerSP, (byte)(registerPC >> 8));
+                        WriteMemory(--registerSP, (byte)registerPC);
+                        registerPC = address;
                         cycles += 18;
                     }
                 } else if (byteInstruction == 0xF4)                                                                         // CP
@@ -2821,7 +2823,7 @@ namespace _8085
                     cycles += 7;
                 } else if (byteInstruction == 0xE4)                                                                         // CPO
                 {
-                    if (flagC)
+                    if (flagP)
                     {
                         registerPC++;
                         registerPC++;
