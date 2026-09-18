@@ -5,6 +5,12 @@ This is an assembler/disassembler for the Intel-8085 microprocessor.
 It can also simulate an Intel SDK-85 developers board (keyboard/display).
 This fork is intended to add simulation of PKW-3000 (keboard/display/serial?)
 
+The PKW-3000 simulation is now available through **Hardware > PKW-3000**.
+Open and assemble the PKW ASM in the main window, then use its Run/Fast/Step controls.
+The hardware window contains the front panel from manual page 1-4. Use the Terminal checkbox
+(or COM connection with an existing virtual port pair), then JOB, E, SET on the device.
+See [the implementation plan, findings, test instructions and handover](docs/PKW-3000.md).
+
 Copyright (c) 2022 Dirk Prins
 
 ![Screenshot](ScreenShot.png)

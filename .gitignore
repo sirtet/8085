@@ -1,0 +1,6 @@
+# Local Visual Studio state and reproducible build output.
+.vs/
+**/.vs/
+**/bin/
+**/obj/
+*.user

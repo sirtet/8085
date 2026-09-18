@@ -34,3 +34,5 @@ using System.Runtime.InteropServices;
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("2.9.*")]
 [assembly: AssemblyFileVersion("2.9")]
+
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Pkw3000Tests")]
