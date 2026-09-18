@@ -106,6 +106,8 @@ namespace _8085
         {
             InitializeComponent();
 
+            InitializeHardwareSelection();
+
             toolStripButtonRun.Enabled = false;
             toolStripButtonStep.Enabled = false;
             toolStripButtonFast.Enabled = false;
@@ -354,6 +356,7 @@ namespace _8085
         /// <param name="e"></param>
         private void chkSDK85_CheckedChanged(object sender, EventArgs e)
         {
+            if (pkwSelected) { ShowPkwHardware(); return; }
             if (formSDK_85 == null)
             {
                 int x = this.Location.X + this.Width + 10;
@@ -377,6 +380,7 @@ namespace _8085
 
         private void chkTerminal_CheckedChanged(object sender, EventArgs e)
         {
+            if (pkwSelected) { ShowPkwTerminal(); return; }
             if (formSDK_85 != null)
             {
                 if (formTerminal == null)
@@ -706,7 +710,7 @@ namespace _8085
             {
                 if (toolStripButtonStop.Enabled)
                 {
-                    formTerminal.keyBuffer += e.KeyChar;
+                    formTerminal.QueueText(e.KeyChar.ToString());
                     e.Handled = true;
                 }
             }
@@ -1356,6 +1360,7 @@ namespace _8085
             }
 
             assembler85 = null;
+            if (pkwSelected) AttachPkwBoard();
             UpdateMemoryPanel(0x0000, 0x0000);
             UpdatePortPanel();
             UpdateRegisters();
@@ -1407,6 +1412,7 @@ namespace _8085
         private void new_Click(object sender, EventArgs e)
         {
             assembler85 = null;
+            if (pkwSelected) AttachPkwBoard();
             UpdateMemoryPanel(0x0000, 0x0000);
             UpdatePortPanel();
             UpdateRegisters();
@@ -1509,11 +1515,12 @@ namespace _8085
                 return;
             }
 
+            if (pkwSelected) AttachPkwBoard();
             nextInstrAddress = Convert.ToUInt16(tbSetProgramCounter.Text, 16);
             ChangeColorRTBLine(assembler85.RAMprogramLine[nextInstrAddress], false);
 
             // Insert monitor program if required
-            if (chkInsertMonitor.Checked)
+            if (!pkwSelected && chkInsertMonitor.Checked)
             {
                 // Check if current program overlaps
                 bool overlap = false;
@@ -1683,17 +1690,20 @@ namespace _8085
             string error = "";
             UInt16 currentInstrAddress = nextInstrAddress;
 
+            var runningCpu = assembler85;
+            var uiClock = Stopwatch.StartNew();
+            int instructionsSinceUi = 0;
+            if (pkwSelected) UpdateTerminal();
             while (!toolStripButtonFast.Enabled && (error == ""))
             {
-                //MessageBox.Show("curr: " + assembler85.RAMprogramLine[currentInstrAddress] + " next: " + assembler85.RAMprogramLine[nextInstrAddress]); // + assembler85.byteInstruction);
-
                 currentInstrAddress = nextInstrAddress;
                 error = assembler85.RunInstruction(currentInstrAddress, ref nextInstrAddress);
                 if (error == "")
                 {
-                    UpdateDisplay();
-                    UpdateKeyboard();
-                    if ((assembler85.RAMprogramLine[nextInstrAddress] == lineBreakPoint) && (lineBreakPoint != -1))
+                    // SDK peripherals still use the original per-instruction UI path.
+                    // PKW electrical timing is already advanced by RunInstruction.
+                    if (!pkwSelected) { UpdateDisplay(); UpdateKeyboard(); }
+                    if (((assembler85.RAMprogramLine[nextInstrAddress] == lineBreakPoint) && (lineBreakPoint != -1)) || (!pkwSelected && assembler85.RAM[nextInstrAddress] == 0xDB))
                     {
                         toolStripButtonStop.Enabled = false;
                         toolStripButtonNew.Enabled = true;
@@ -1704,28 +1714,22 @@ namespace _8085
                         toolStripButtonReset.Enabled = true;
                         resetSimulatorToolStripMenuItem.Enabled = true;
                     }
-
-                    toolStripButtonStop.Enabled = true;
-                    Application.DoEvents();
                 }
 
-                tbCycles.Text = assembler85.cycles.ToString();
-                UpdateSerial();
-                UpdateTerminal();
-            }
-            if (!toolStripButtonFast.Enabled && (error == "IN Instruction"))
-            {
-                //MessageBox.Show("IN");
-
-                toolStripButtonStop.Enabled = false;
-                toolStripButtonNew.Enabled = true;
-                toolStripButtonDebug.Enabled = true;
-                toolStripButtonRun.Enabled = true;
-                toolStripButtonFast.Enabled = true;
-                toolStripButtonStep.Enabled = true;
-                toolStripButtonReset.Enabled = true;
-                resetSimulatorToolStripMenuItem.Enabled = true;
-
+                // Do not paint, parse terminal settings or pump Windows messages for
+                // every CPU instruction. Check the UI deadline every 256 instructions;
+                // breakpoints/errors still stop on the exact instruction above.
+                if (!pkwSelected || toolStripButtonFast.Enabled || error != "" ||
+                    ((++instructionsSinceUi & 255) == 0 && uiClock.ElapsedMilliseconds >= 16))
+                {
+                    if (pkwSelected) UpdateDisplay();
+                    tbCycles.Text = assembler85.cycles.ToString();
+                    UpdateSerial();
+                    UpdateTerminal();
+                    Application.DoEvents();
+                    if (IsDisposed || assembler85 != runningCpu) return;
+                    uiClock.Restart();
+                }
             }
             UInt16 startViewAddress = Convert.ToUInt16(memoryAddressLabels[0].Text, 16);
 
@@ -1756,18 +1760,6 @@ namespace _8085
                 toolStripButtonReset.Enabled = true;
                 resetSimulatorToolStripMenuItem.Enabled = true;
                 toolStripButtonDebug.Enabled = true;
-            } else if (error == "IN Instruction")
-            {
-                toolStripButtonRun.Enabled = true;
-                toolStripButtonFast.Enabled = true;
-                toolStripButtonStep.Enabled = true;
-                toolStripButtonStop.Enabled = false;
-                toolStripButtonNew.Enabled = true;
-                toolStripButtonReset.Enabled = true;
-                resetSimulatorToolStripMenuItem.Enabled = true;
-                toolStripButtonDebug.Enabled = true;
-
-                ChangeColorRTBLine(assembler85.RAMprogramLine[currentInstrAddress], true);
             }
             else if (error == "System Halted")
             {
@@ -2214,7 +2206,7 @@ namespace _8085
             {
                 if (toolStripButtonStop.Enabled)
                 {
-                    formTerminal.keyBuffer += e.KeyChar;
+                    formTerminal.QueueText(e.KeyChar.ToString());
                     e.Handled = true;
                 }
             }
@@ -2229,7 +2221,7 @@ namespace _8085
         {
             if ((assembler85 != null) && (formTerminal != null))
             {
-                if (toolStripButtonStop.Enabled) e.Handled = true;
+                if (toolStripButtonStop.Enabled) { formTerminal.HandleInputKeyDown(e); e.Handled = true; }
             }
         }
 
@@ -2632,6 +2624,7 @@ namespace _8085
         /// </summary>
         private void UpdateDisplay()
         {
+            if (pkwSelected) { if (pkwWindow != null) pkwWindow.RefreshHardware(); return; }
             if ((formSDK_85 != null) && (assembler85.writeToDisplay))
             {
                 // Data
@@ -2786,6 +2779,7 @@ namespace _8085
         /// </summary>
         private void UpdateTerminal()
         {
+            if (pkwSelected) { PumpPkwSerial(); return; }
             if ((assembler85 != null) && (formTerminal != null))
             {
                 // Update terminal display if data in buffer

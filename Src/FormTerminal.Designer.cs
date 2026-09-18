@@ -1,4 +1,4 @@
-﻿namespace _8085
+namespace _8085
 {
     partial class FormTerminal
     {
@@ -29,7 +29,7 @@
         private void InitializeComponent()
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FormTerminal));
-            this.tbTerminal = new System.Windows.Forms.RichTextBox();
+            this.tbTerminal = new TerminalTextBox();
             this.tbKeyBuffer = new System.Windows.Forms.TextBox();
             this.lblKeyBuffer = new System.Windows.Forms.Label();
             this.cbBaudRate = new System.Windows.Forms.ComboBox();

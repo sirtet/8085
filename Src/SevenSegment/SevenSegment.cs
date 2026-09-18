@@ -83,6 +83,7 @@ namespace _8085
         /// <param name="e"></param>
         private void SevenSegment_Paint(object sender, PaintEventArgs e)
         {
+            CalculatePoints(); // Recompute geometry after resizing (including the PKW panel).
             Brush brushLight = new SolidBrush(colorLight);
             Brush brushDark = new SolidBrush(colorDark);
 
@@ -102,6 +103,8 @@ namespace _8085
             e.Graphics.FillPolygon((segmentsValue & 0x02) == 0x02 ? brushLight : brushDark, segmentsPoints[5]);
             e.Graphics.FillPolygon((segmentsValue & 0x04) == 0x04 ? brushLight : brushDark, segmentsPoints[6]);
             e.Graphics.FillPolygon((segmentsValue & 0x08) == 0x08 ? brushLight : brushDark, segmentsPoints[7]);
+            e.Graphics.ResetTransform();
+            trans.Dispose(); brushLight.Dispose(); brushDark.Dispose();
         }
 
         #endregion
