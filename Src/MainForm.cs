@@ -1676,6 +1676,7 @@ namespace _8085
         /// <param name="e"></param>
         private void startFast_Click(object sender, EventArgs e)
         {
+            bool realtime = pkwSelected && ReferenceEquals(sender, realtimeButton);
             toolStripButtonStop.Enabled = true;
             toolStripButtonRun.Enabled = false;
             toolStripButtonDebug.Enabled = false;
@@ -1692,10 +1693,20 @@ namespace _8085
 
             var runningCpu = assembler85;
             var uiClock = Stopwatch.StartNew();
+            var realtimeClock = Stopwatch.StartNew();
+            ulong realtimeOrigin = assembler85.cycles;
+            var realtimeBoard = pkwBoard;
             int instructionsSinceUi = 0;
             if (pkwSelected) UpdateTerminal();
             while (!toolStripButtonFast.Enabled && (error == ""))
             {
+                // RST keeps the CPU instance but replaces the board and resets its clock.
+                if (realtime && realtimeBoard != pkwBoard)
+                {
+                    realtimeBoard = pkwBoard;
+                    realtimeOrigin = assembler85.cycles;
+                    realtimeClock.Restart();
+                }
                 currentInstrAddress = nextInstrAddress;
                 error = assembler85.RunInstruction(currentInstrAddress, ref nextInstrAddress);
                 if (error == "")
@@ -1719,8 +1730,24 @@ namespace _8085
                 // Do not paint, parse terminal settings or pump Windows messages for
                 // every CPU instruction. Check the UI deadline every 256 instructions;
                 // breakpoints/errors still stop on the exact instruction above.
+                bool batchDue = (++instructionsSinceUi & 255) == 0;
+                if (realtime && batchDue && error == "" && !toolStripButtonFast.Enabled)
+                {
+                    double simulatedSeconds = (assembler85.cycles - realtimeOrigin) / (double)Pkw3000Hardware.ClockHz;
+                    // Bound catch-up after a suspended window/host instead of running a long burst.
+                    if (realtimeClock.Elapsed.TotalSeconds - simulatedSeconds > 0.1)
+                    {
+                        realtimeOrigin = assembler85.cycles;
+                        realtimeClock.Restart();
+                    }
+                    else while (simulatedSeconds > realtimeClock.Elapsed.TotalSeconds)
+                    {
+                        System.Threading.Thread.Sleep(1);
+                        if (uiClock.ElapsedMilliseconds >= 16) break;
+                    }
+                }
                 if (!pkwSelected || toolStripButtonFast.Enabled || error != "" ||
-                    ((++instructionsSinceUi & 255) == 0 && uiClock.ElapsedMilliseconds >= 16))
+                    (batchDue && uiClock.ElapsedMilliseconds >= 16))
                 {
                     if (pkwSelected) UpdateDisplay();
                     tbCycles.Text = assembler85.cycles.ToString();

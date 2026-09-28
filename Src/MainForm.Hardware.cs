@@ -11,11 +11,23 @@ namespace _8085
         private Pkw3000Hardware pkwBoard;
         private FormPkw3000 pkwWindow;
         private ToolStripMenuItem sdkMenu, pkwMenu;
+        private readonly ToolStripButton realtimeButton = new ToolStripButton("Realtime") {
+            Name = "realtimeButton", DisplayStyle = ToolStripItemDisplayStyle.Image,
+            ToolTipText = "Run in realtime — emulate the PKW-3000 at 3 MHz", Visible = false, Enabled = false };
+
         internal Func<bool> ConfirmFirmwareSource;
         internal Func<bool> ConfirmReplaceSource;
 
         private void InitializeHardwareSelection()
         {
+            var realtimeImage = CreateRealtimeImage(toolStripButtonRun.Image);
+            realtimeButton.Image = realtimeImage;
+            realtimeButton.ImageTransparentColor = toolStripButtonRun.ImageTransparentColor;
+            Disposed += (s, e) => realtimeImage.Dispose();
+            toolStrip.Items.Insert(toolStrip.Items.IndexOf(toolStripButtonFast) + 1, realtimeButton);
+            toolStripButtonFast.EnabledChanged += (s, e) => realtimeButton.Enabled = toolStripButtonFast.Enabled;
+            realtimeButton.Enabled = toolStripButtonFast.Enabled;
+            realtimeButton.Click += startFast_Click;
             // Give the menu its own row, keeping existing debugger controls below it.
             SuspendLayout();
             foreach (Control control in Controls) if (control != menuStrip) control.Top += 28;
@@ -40,13 +52,29 @@ namespace _8085
                 try { LoadAdaptedFirmwareSource(); }
                 catch (Exception ex) { MessageBox.Show(this, ex.Message, "Firmware source", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             };
-            menu.DropDownItems.AddRange(new ToolStripItem[] { sdkMenu, pkwMenu }); menuStrip.Items.Add(menu);
+            menu.DropDownItems.AddRange(new ToolStripItem[] { sdkMenu, pkwMenu }); menuStrip.Items.Insert(menuStrip.Items.IndexOf(helpToolStripMenuItem), menu);
+            toolStrip.Layout += (s, e) => LayoutExecutionControls();
             FormClosed += (s, e) => { formTerminal?.Close(); formSDK_85?.Close(); pkwWindow?.Close(); };
             FormClosing += (s, e) => {
                 try { pkwBoard?.Eprom?.Save(); }
                 catch (Exception ex) { e.Cancel = true; MessageBox.Show(this, "Could not save the EP-ROM file:\n" + ex.Message, "EPROM", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             };
             ResumeLayout(true);
+            LayoutExecutionControls();
+        }
+        private static Bitmap CreateRealtimeImage(Image runImage)
+        {
+            // Keep the original Run artwork pixel-for-pixel outside the lettering.
+            // A small pixel-aligned stencil stays legible at the toolbar's 16px size.
+            var result = new Bitmap(runImage);
+            string[] stencil = { "1100111", "1010010", "1100010", "1010010", "1010010" };
+            for (int y = 0; y < stencil.Length; y++)
+                for (int x = 0; x < stencil[y].Length; x++)
+                    if (stencil[y][x] == '1')
+                        for (int dy = 0; dy < 2; dy++)
+                            for (int dx = 0; dx < 2; dx++)
+                                result.SetPixel(6 + x * 2 + dx, 11 + y * 2 + dy, Color.Transparent);
+            return result;
         }
         internal static string ReadAdaptedFirmwareSource()
         {
@@ -62,18 +90,34 @@ namespace _8085
             richTextBoxProgram.Text = source;
             startDebug_Click(this, EventArgs.Empty);
         }
+        private void LayoutExecutionControls()
+        {
+            // These are separate form controls, not toolbar items. Follow the actual
+            // toolbar width, including the PKW-only text button and DPI/font scaling.
+            int gap = Math.Max(4, toolStrip.Height / 5);
+            lblSetProgramCounter.Left = toolStrip.Right + gap;
+            tbSetProgramCounter.Left = lblSetProgramCounter.Right + gap;
+            lblFocusLine.Left = tbSetProgramCounter.Right + gap;
+            numFocusLine.Left = lblFocusLine.Right + gap;
+            chkInsertMonitor.Left = numFocusLine.Right + 3 * gap;
+            chkSDK85.Left = btnViewProgram.Right + gap;
+            chkTerminal.Left = chkSDK85.Right + gap;
+        }
         private void SelectHardware(bool pkw)
         {
             if (pkwSelected == pkw) return;
             stop_Click(this, EventArgs.Empty);
             chkTerminal.Checked = false; chkSIDSOD.Checked = false; chkSDK85.Checked = false;
             pkwSelected = pkw;
+            realtimeButton.Visible = pkw;
             sdkMenu.Checked = !pkw; pkwMenu.Checked = pkw;
-            chkSDK85.Text = pkw ? "Hardware" : "SDK-85";
+            chkSDK85.Text = pkw ? "PKW-3000" : "SDK-85";
+            chkSDK85.Left = chkTerminal.Left - chkSDK85.Width - 8;
             chkInsertMonitor.Checked = false; chkInsertMonitor.Visible = !pkw;
             chkSIDSOD.Visible = !pkw;
             resetSimulator_Click(this, EventArgs.Empty);
             chkSDK85.Checked = true;
+            LayoutExecutionControls();
         }
         private void AttachPkwBoard()
         {
