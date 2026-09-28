@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("8085")]
-[assembly: AssemblyDescription("8085 Assembler / Disassembler / Simulator")]
+[assembly: AssemblyTitle("8085 Simulator — PKW-3000 Edition")]
+[assembly: AssemblyDescription("PKW-Sim by toro / Codex. Based on the 8085 Simulator by Dirk Prins; independently maintained adaptations.")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("ForNext Software Development")]
-[assembly: AssemblyProduct("8085")]
-[assembly: AssemblyCopyright("Copyright © 2022")]
+[assembly: AssemblyCompany("toro / Codex")]
+[assembly: AssemblyProduct("8085 Simulator — PKW-3000 Edition")]
+[assembly: AssemblyCopyright("Original simulator: Copyright © 2022 D. Prins")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

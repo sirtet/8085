@@ -39,15 +39,14 @@
             | System.Windows.Forms.AnchorStyles.Right)));
             this.tbAbout.BackColor = System.Drawing.SystemColors.Info;
             this.tbAbout.Cursor = System.Windows.Forms.Cursors.Default;
-            this.tbAbout.Font = new System.Drawing.Font("Caladea", 15.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.tbAbout.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.tbAbout.Location = new System.Drawing.Point(12, 12);
             this.tbAbout.Multiline = true;
             this.tbAbout.Name = "tbAbout";
             this.tbAbout.ReadOnly = true;
-            this.tbAbout.Size = new System.Drawing.Size(416, 252);
+            this.tbAbout.Size = new System.Drawing.Size(556, 280);
             this.tbAbout.TabIndex = 1;
-            this.tbAbout.Text = "8085 Simulator\r\nCreated by Dirk Prins\r\ninfo@fornext.nl\r\n\r\nCopyright (c) 2022 D. P" +
-    "rins\r\n----------------------------------------------------";
+            this.tbAbout.Text = "";
             this.tbAbout.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // btnOK
@@ -56,9 +55,9 @@
             | System.Windows.Forms.AnchorStyles.Right)));
             this.btnOK.BackColor = System.Drawing.SystemColors.ControlLight;
             this.btnOK.Font = new System.Drawing.Font("Caladea", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.btnOK.Location = new System.Drawing.Point(12, 270);
+            this.btnOK.Location = new System.Drawing.Point(12, 300);
             this.btnOK.Name = "btnOK";
-            this.btnOK.Size = new System.Drawing.Size(416, 35);
+            this.btnOK.Size = new System.Drawing.Size(556, 35);
             this.btnOK.TabIndex = 2;
             this.btnOK.Text = "OK";
             this.btnOK.UseVisualStyleBackColor = false;
@@ -69,7 +68,7 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.ActiveBorder;
-            this.ClientSize = new System.Drawing.Size(440, 317);
+            this.ClientSize = new System.Drawing.Size(580, 347);
             this.Controls.Add(this.btnOK);
             this.Controls.Add(this.tbAbout);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Fixed3D;

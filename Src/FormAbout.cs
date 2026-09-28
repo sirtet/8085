@@ -12,17 +12,17 @@ namespace _8085
         {
             InitializeComponent();
 
-            // Get version info to display
-            Assembly thisAssem = typeof(MainForm).Assembly;
-            AssemblyName thisAssemName = thisAssem.GetName();
-            Version ver = thisAssemName.Version;
-
-            // Calculate assembly date
-            DateTime date = new DateTime(2000, 1, 1);
-            date = date.AddDays(ver.Build);
-            date = date.AddSeconds(ver.Revision * 2);    
-
-            tbAbout.Text += "\r\n\r\nversion: " + ver.Major + "." + ver.Minor + "\r\n(Build: " + ver.Build + ", " + date.ToShortDateString() + " " + date.ToShortTimeString() + ")";
+            Version version = typeof(MainForm).Assembly.GetName().Version;
+            DateTime built = new DateTime(2000, 1, 1).AddDays(version.Build).AddSeconds(version.Revision * 2);
+            tbAbout.Text = "8085 Simulator — PKW-3000 Edition\r\n" +
+                "PKW-Sim by toro / Codex\r\n\r\n" +
+                "Original 8085 Simulator by Dirk Prins.\r\n" +
+                "Copyright © 2022 D. Prins\r\n\r\n" +
+                "This fork adds PKW-3000 emulation and modifies parts of the\r\n" +
+                "original simulator. These changes are maintained\r\n" +
+                "independently of Dirk Prins.\r\n\r\n" +
+                "Version " + version.Major + "." + version.Minor + " — PKW-Sim\r\n" +
+                "Build " + version.Build + "." + version.Revision + " · " + built.ToString("yyyy-MM-dd HH:mm");
 
             tbAbout.DeselectAll();
         }

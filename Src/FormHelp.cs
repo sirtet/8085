@@ -17,6 +17,24 @@ namespace _8085
         public FormHelp()
         {
             InitializeComponent();
+            Text = "PKW-3000 Help";
+            var manualLink = new LinkLabel {
+                Text = "PKW-3000 User Manual (PDF)", AutoSize = true,
+                Location = new System.Drawing.Point(12, 536),
+                Anchor = AnchorStyles.Left | AnchorStyles.Bottom,
+                TabIndex = 0
+            };
+            manualLink.LinkClicked += (s, e) => {
+                try {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo {
+                        FileName = "https://github.com/sirtet/pkw-3000/blob/main/PKW-3000_User_Manual_with_notes_OCR.pdf",
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex) { MessageBox.Show(this, "Could not open the manual:\n" + ex.Message, "PKW-3000 Manual", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            };
+            Controls.Add(manualLink);
+            Disposed += (s, e) => { newFont1.Dispose(); newFont2.Dispose(); };
         }
 
         #endregion
@@ -77,6 +95,8 @@ namespace _8085
 
                 start = end + 1;
             }
+            rtbInfo.Select(0, 0);
+            rtbInfo.ScrollToCaret();
         }
 
         #endregion
