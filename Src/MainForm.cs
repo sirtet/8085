@@ -107,6 +107,7 @@ namespace _8085
             InitializeComponent();
 
             InitializeHardwareSelection();
+            FormClosed += (s, e) => CloseBinaryProgram();
 
             toolStripButtonRun.Enabled = false;
             toolStripButtonStep.Enabled = false;
@@ -289,12 +290,13 @@ namespace _8085
             UpdateKeyboard();
             UpdateSerial();
             UpdateTerminal();
+            UpdateBinaryProgram();
 
             if (error == "")
             {
                 ChangeColorRTBLine(assembler85.RAMprogramLine[currentInstrAddress], false);
 
-                if (assembler85.RAMprogramLine[nextInstrAddress] == lineBreakPoint)
+                if (lineBreakPoint != -1 && assembler85.RAMprogramLine[nextInstrAddress] == lineBreakPoint)
                 {
                     timer.Enabled = false;
 
@@ -785,52 +787,14 @@ namespace _8085
 
         private void saveBinary_Click(object sender, EventArgs e)
         {
-            if ((assembler85 == null) || (assembler85.programRun == null))
+            using (var dialog = new SaveFileDialog { Title = "Save Binary File As", Filter = "Binary image (*.bin)|*.bin|All files (*.*)|*.*", DefaultExt = "bin" })
             {
-                MessageBox.Show("Nothing yet to save", "WARNING", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            SaveFileDialog fileDialog = new SaveFileDialog();
-            fileDialog.Title = "Save Binary File As";
-            fileDialog.InitialDirectory = System.Environment.GetFolderPath(Environment.SpecialFolder.Personal);
-            fileDialog.FileName = "";
-            fileDialog.Filter = "Binary|*.bin|All Files|*.*";
-
-            if (fileDialog.ShowDialog() != DialogResult.Cancel)
-            {
-                int start = -1;
-                int end = -1;
-
-                // Find start address of code
-                for (int i = 0; i < assembler85.RAM.Length; i++)
-                {
-                    if ((assembler85.RAM[i] != 0) && (start == -1)) start = i;
-                }
-
-                // Find end address of code
-                for (int i = assembler85.RAM.Length - 1; i >= 0; i--)
-                {
-                    if ((assembler85.RAM[i] != 0) && (end == -1)) end = i;
-                }
-
-                if ((start == -1) || (end == -1))
-                {
-                    MessageBox.Show("Nothing to save", "WARNING", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                // New byte array with only used code 
-                byte[] bytes = new byte[end - start + 1];
-                for (int i = 0; i < end - start + 1; i++)
-                {
-                    bytes[i] = assembler85.RAM[start + i];
-                }
-
-                // Save binary file
-                File.WriteAllBytes(fileDialog.FileName, bytes);
-
-                MessageBox.Show("Binary file saved as\r\n" + fileDialog.FileName, "SAVED", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                byte[] bytes;
+                try { bytes = CreateBinaryImage(); }
+                catch (Exception ex) { MessageBox.Show(this, ex.Message, "Save Binary", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                try { File.WriteAllBytes(dialog.FileName, bytes); }
+                catch (Exception ex) { MessageBox.Show(this, "Could not save the binary file:\n" + ex.Message, "Save Binary", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             }
         }
 
@@ -844,16 +808,16 @@ namespace _8085
 
             if (fileDialog.ShowDialog() != DialogResult.Cancel)
             {
-                sourceFile = fileDialog.FileName;
-                byte[] bytes = File.ReadAllBytes(sourceFile);
+                byte[] bytes = File.ReadAllBytes(fileDialog.FileName);
 
                 FormAddresses formAddresses = new FormAddresses();
-                formAddresses.ShowDialog();
+                if (formAddresses.ShowDialog(this) != DialogResult.OK) return;
 
                 FormDisAssembler disAssemblerForm = new FormDisAssembler(bytes, formAddresses.loadAddress, formAddresses.startAddress, formAddresses.useLabels);
                 DialogResult dialogResult = disAssemblerForm.ShowDialog();
                 if (dialogResult == DialogResult.OK)
                 {
+                    sourceFile = "";
                     richTextBoxProgram.Text = disAssemblerForm.program;
                 }
             }
@@ -1351,6 +1315,7 @@ namespace _8085
 
         private void resetSimulator_Click(object sender, EventArgs e)
         {
+            CloseBinaryProgram();
             if (timer.Enabled)
             {
                 timer.Enabled = false;
@@ -1411,6 +1376,7 @@ namespace _8085
 
         private void new_Click(object sender, EventArgs e)
         {
+            CloseBinaryProgram();
             assembler85 = null;
             if (pkwSelected) AttachPkwBoard();
             UpdateMemoryPanel(0x0000, 0x0000);
@@ -1450,6 +1416,7 @@ namespace _8085
 
         private void startDebug_Click(object sender, EventArgs e)
         {
+            CloseBinaryProgram();
             assembler85 = new Assembler85(richTextBoxProgram.Lines);
             nextInstrAddress = 0;
             try
@@ -1614,6 +1581,7 @@ namespace _8085
             UpdateInterrupts();
             UpdateSerial();
             UpdateTerminal();
+            UpdateBinaryProgram();
 
             if (error == "")
             {
@@ -1753,6 +1721,7 @@ namespace _8085
                     tbCycles.Text = assembler85.cycles.ToString();
                     UpdateSerial();
                     UpdateTerminal();
+                    UpdateBinaryProgram();
                     Application.DoEvents();
                     if (IsDisposed || assembler85 != runningCpu) return;
                     uiClock.Restart();
@@ -1775,6 +1744,7 @@ namespace _8085
             UpdateInterrupts();
             UpdateSerial();
             UpdateTerminal();
+            UpdateBinaryProgram();
             
             if (error == "")
             {

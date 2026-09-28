@@ -58,7 +58,7 @@ namespace _8085
             {
                 try
                 {
-                    loadAddress = UInt16.Parse(textBoxLoadAddress.Text.Substring(2), System.Globalization.NumberStyles.HexNumber);
+                    loadAddress = UInt16.Parse(textBoxLoadAddress.Text.Trim().Substring(0, textBoxLoadAddress.Text.Trim().Length - 1), System.Globalization.NumberStyles.HexNumber);
                 } catch (Exception)
                 {
                     MessageBox.Show("Not a valid number as load address", "WARNING", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -88,7 +88,7 @@ namespace _8085
             {
                 try
                 {
-                    startAddress = UInt16.Parse(textBoxStartAddress.Text.Substring(2), System.Globalization.NumberStyles.HexNumber);
+                    startAddress = UInt16.Parse(textBoxStartAddress.Text.Trim().Substring(0, textBoxStartAddress.Text.Trim().Length - 1), System.Globalization.NumberStyles.HexNumber);
                 } catch (Exception)
                 {
                     MessageBox.Show("Not a valid number as start address", "WARNING", MessageBoxButtons.OK, MessageBoxIcon.Warning);

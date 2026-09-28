@@ -64,6 +64,8 @@ namespace _8085
         // Current location of the program (during firstpass and secondpass)
         public int locationCounter;
 
+        // Inclusive bounds of emitted/reserved bytes, independent of ORG order.
+        public int firstAddress = -1, lastAddress = -1;
 
         // Register values
         public byte registerA = 0x00;
@@ -680,6 +682,7 @@ namespace _8085
             // StartLocation denotes the first RAM location to which we are assembling the program
             // locationCounter is a temporary variable to traverse program for first pass
             locationCounter = startLocation;
+            firstAddress = lastAddress = -1;
 
             // Opcode in the line
             string opcode;
@@ -1306,6 +1309,7 @@ namespace _8085
         /// <returns></returns>
         public string SecondPass()
         {
+            firstAddress = lastAddress = -1;
             // StartLocation gives the location from which we have to start assembling
             // Using locationCounter to traverse the location of RAM during second pass
             locationCounter = startLocation; 
@@ -2537,6 +2541,12 @@ namespace _8085
                         while (programView[lineNumber].Length < 46)
                         {
                             programView[lineNumber] += " ";
+                        }
+
+                        if (locationCounter > locationCounterInstructionStart)
+                        {
+                            firstAddress = firstAddress < 0 ? locationCounterInstructionStart : Math.Min(firstAddress, locationCounterInstructionStart);
+                            lastAddress = Math.Max(lastAddress, locationCounter - 1);
                         }
 
                         for (int i = locationCounterInstructionStart; i < locationCounter; i++)

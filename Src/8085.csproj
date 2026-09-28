@@ -122,6 +122,7 @@
     <Compile Include="Program.cs" />
     <Compile Include="FormPkw3000.cs" />
     <Compile Include="MainForm.Hardware.cs" />
+    <Compile Include="MainForm.Binary.cs" />
     <Compile Include="ISimulatedHardware.cs" />
     <Compile Include="Pkw3000Hardware.cs" />
     <Compile Include="PkwEprom.cs" />
