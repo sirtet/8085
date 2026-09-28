@@ -92,7 +92,10 @@ namespace _8085
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Control;
             this.ClientSize = new System.Drawing.Size(464, 241);
-            this.ControlBox = false;
+            this.ControlBox = true;
+            this.MinimizeBox = true;
+            this.MaximizeBox = true;
+            this.MinimumSize = new System.Drawing.Size(420, 220);
             this.Controls.Add(this.cbBaudRate);
             this.Controls.Add(this.lblKeyBuffer);
             this.Controls.Add(this.tbKeyBuffer);

@@ -69,6 +69,7 @@
   <ItemGroup>
     <Compile Include="Assembler85.cs" />
     <Compile Include="Calculator.cs" />
+    <Compile Include="NativeEpromDialog.cs" />
     <Compile Include="DisAssembler85.cs" />
     <Compile Include="FormAddresses.cs">
       <SubType>Form</SubType>
@@ -121,7 +122,6 @@
     <Compile Include="Program.cs" />
     <Compile Include="FormPkw3000.cs" />
     <Compile Include="MainForm.Hardware.cs" />
-    <Compile Include="FormComConnection.cs" />
     <Compile Include="ISimulatedHardware.cs" />
     <Compile Include="Pkw3000Hardware.cs" />
     <Compile Include="PkwEprom.cs" />
@@ -207,4 +207,13 @@
   </ItemGroup>
   <ItemGroup><EmbeddedResource Include="Resources\pkw-panel.png"><LogicalName>pkw-panel.png</LogicalName></EmbeddedResource></ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\pkw-socket-photo-24-closed.png"><LogicalName>pkw-socket-photo-24-closed.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Resources\pkw-socket-photo-24-open.png"><LogicalName>pkw-socket-photo-24-open.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Resources\pkw-socket-photo-28-closed.png"><LogicalName>pkw-socket-photo-28-closed.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Resources\pkw-socket-photo-28-open.png"><LogicalName>pkw-socket-photo-28-open.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Resources\pkw-photo-panel.png"><LogicalName>pkw-photo-panel.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Resources\pkw-switch-vertical.png"><LogicalName>pkw-switch-vertical.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Resources\pkw-switch-horizontal.png"><LogicalName>pkw-switch-horizontal.png</LogicalName></EmbeddedResource>
+  </ItemGroup>
 </Project>

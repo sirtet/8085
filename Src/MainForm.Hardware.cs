@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using System.IO;
 
 namespace _8085
 {
@@ -9,10 +10,7 @@ namespace _8085
         private bool pkwSelected;
         private Pkw3000Hardware pkwBoard;
         private FormPkw3000 pkwWindow;
-        private FormComConnection comWindow;
-        private readonly CheckBox chkCom = new CheckBox { Text = "COM connection", AutoSize = true, Visible = false };
         private ToolStripMenuItem sdkMenu, pkwMenu;
-
         private void InitializeHardwareSelection()
         {
             // Give the menu its own row, keeping existing debugger controls below it.
@@ -27,37 +25,31 @@ namespace _8085
             sdkMenu.Click += (s, e) => SelectHardware(false);
             pkwMenu.Click += (s, e) => SelectHardware(true);
             menu.DropDownItems.AddRange(new ToolStripItem[] { sdkMenu, pkwMenu }); menuStrip.Items.Add(menu);
-            chkCom.Location = chkSIDSOD.Location; chkCom.Anchor = chkSIDSOD.Anchor;
-            Controls.Add(chkCom); chkCom.CheckedChanged += (s, e) => {
-                if (chkCom.Checked)
-                {
-                    chkTerminal.Checked = false;
-                    comWindow = new FormComConnection();
-                    comWindow.FormClosed += (a, b) => { comWindow = null; chkCom.Checked = false; };
-                    comWindow.Show(this);
-                }
-                else if (comWindow != null) comWindow.Close();
+            FormClosed += (s, e) => { formTerminal?.Close(); formSDK_85?.Close(); pkwWindow?.Close(); };
+            FormClosing += (s, e) => {
+                try { pkwBoard?.Eprom?.Save(); }
+                catch (Exception ex) { e.Cancel = true; MessageBox.Show(this, "Could not save the EP-ROM file:\n" + ex.Message, "EPROM", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             };
-            FormClosed += (s, e) => { comWindow?.Close(); formTerminal?.Close(); formSDK_85?.Close(); pkwWindow?.Close(); };
             ResumeLayout(true);
         }
         private void SelectHardware(bool pkw)
         {
             if (pkwSelected == pkw) return;
             stop_Click(this, EventArgs.Empty);
-            chkTerminal.Checked = false; chkSIDSOD.Checked = false; chkSDK85.Checked = false; chkCom.Checked = false;
+            chkTerminal.Checked = false; chkSIDSOD.Checked = false; chkSDK85.Checked = false;
             pkwSelected = pkw;
             sdkMenu.Checked = !pkw; pkwMenu.Checked = pkw;
             chkSDK85.Text = pkw ? "Hardware" : "SDK-85";
             chkInsertMonitor.Checked = false; chkInsertMonitor.Visible = !pkw;
-            chkSIDSOD.Visible = !pkw; chkCom.Visible = pkw;
+            chkSIDSOD.Visible = !pkw;
             resetSimulator_Click(this, EventArgs.Empty);
             chkSDK85.Checked = true;
         }
         private void AttachPkwBoard()
         {
             byte switches = pkwBoard == null ? (byte)0x28 : pkwBoard.SwitchInputs;
-            pkwBoard = new Pkw3000Hardware { SwitchInputs = switches };
+            var eprom = pkwBoard?.Eprom;
+            pkwBoard = new Pkw3000Hardware { SwitchInputs = switches, Eprom = eprom };
             if (assembler85 != null) assembler85.Hardware = pkwBoard;
             pkwWindow?.Bind(pkwBoard);
         }
@@ -87,7 +79,6 @@ namespace _8085
         {
             if (chkTerminal.Checked)
             {
-                chkCom.Checked = false;
                 formTerminal = new FormTerminal(Location.X + 80, Location.Y + 120) { InitialBaudRate = 4800 };
                 formTerminal.FormClosed += (s, e) => { formTerminal = null; chkTerminal.Checked = false; };
                 formTerminal.Show(this);
@@ -97,11 +88,6 @@ namespace _8085
         private void PumpPkwSerial()
         {
             if (assembler85 == null || pkwBoard == null) return;
-            if (comWindow != null && comWindow.Connected)
-            {
-                comWindow.Pump(pkwBoard);
-                return;
-            }
             pkwBoard.CtsReady = pkwBoard.DsrReady = true;
             if (formTerminal != null)
             {
