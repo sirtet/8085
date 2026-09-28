@@ -4,8 +4,7 @@ using System.Text;
 
 namespace _8085
 {
-    // Firmware-compatible first-stage model. See docs/PKW-3000.md for schematic errata
-    // and intentionally unmodelled EPROM programming/analogue circuitry.
+    // Functional digital model; analogue voltage/timing tolerances are not simulated.
     sealed class Pkw3000Hardware : ISimulatedHardware
     {
         public const ulong ClockHz = 3000000;
@@ -15,6 +14,15 @@ namespace _8085
         public bool DsrReady { get; set; } = true;
         public byte[] Ports { get; } = new byte[256];
         public byte[] BufferRam { get; } = new byte[8192];
+        internal PkwEprom Eprom { get; set; }
+        internal int SelectedEpromType { get { return PkwEprom.TypeFromSwitches(SwitchInputs); } }
+        private bool SocketConnected { get { return Eprom != null && Eprom.Closed && Eprom.Type == SelectedEpromType; } }
+        private int EpromAddress { get { return Ports[0xA1] | ((Ports[0xA2] & 31) << 8); } }
+        private byte EpromByte { get { return SocketConnected ? Eprom.Data[EpromAddress % Eprom.Data.Length] : (byte)255; } }
+        private byte epromMode = 0x90;
+        // DA/DB/VCC transition patterns from original ROM table 0D45, functions 7/8.
+        private static readonly byte[] ProgramIdle = { 0x43, 0xC2, 0xC2, 0xC2, 0x42, 0xC1, 0xC1 };
+        private static readonly byte[] ProgramPulse = { 0x42, 0xC0, 0xC0, 0xC0, 0x40, 0xC3, 0xC3 };
         public ulong TimerPulses { get; private set; }
         public ulong Cycles { get; private set; }
         public bool HostMaySend { get { return (Ports[0xC2] & 0x20) == 0; } }
@@ -154,8 +162,11 @@ namespace _8085
                 case 0x83:
                     int bitAddress = Ports[0x81] | Ports[0x82] << 8;
                     return (byte)((BufferRam[bitAddress >> 3] >> (bitAddress & 7)) & 1);
-                case 0xA0: return 0xFF; // empty EPROM socket; programming is not modelled
-                case 0xC0: return SwitchInputs;
+                case 0xA0: return EpromByte;
+                case 0xC0:
+                    // Both comparator outputs agree for valid digital levels. A2[7:5]
+                    // selects one data bit through the analogue multiplexer.
+                    return (byte)((SwitchInputs & 0xFC) | (((EpromByte >> (Ports[0xA2] >> 5)) & 1) != 0 ? 3 : 0));
                 case 0xC2:
                     int bit = rxActive ? (int)((cycle - rxStart) / BitCycles) : 11;
                     bool rx = bit == 0 || (bit >= 1 && bit <= 8 && (rxByte & (1 << (bit - 1))) == 0);
@@ -168,6 +179,7 @@ namespace _8085
         public void WritePort(byte port, byte value, ulong cycle)
         {
             Advance(cycle);
+            byte previous = Ports[port];
             Ports[port] = value;
             switch (port)
             {
@@ -197,6 +209,23 @@ namespace _8085
                         int address = bitAddress >> 3;
                         BufferRam[address] = (byte)((BufferRam[address] & ~mask) |
                             ((Ports[0x80] & 1) != 0 ? mask : 0));
+                    }
+                    break;
+                case 0xA3:
+                    if ((value & 128) != 0) { epromMode = value; Ports[0xA0] = Ports[0xA1] = Ports[0xA2] = 0; }
+                    else {
+                        int mask = 1 << ((value >> 1) & 7);
+                        Ports[0xA2] = (byte)((Ports[0xA2] & ~mask) | ((value & 1) != 0 ? mask : 0));
+                    }
+                    break;
+                case 0xC1:
+                    if (SocketConnected) {
+                        int type = SelectedEpromType;
+                        // Mask VPP selection and pull-up control; preserve DA/DB enable and VCC.
+                        int before = previous & 0xC7, after = value & 0xC7;
+                        if ((epromMode & 0x10) == 0 && before == ProgramIdle[type] && after == ProgramPulse[type])
+                            Eprom.Program(EpromAddress % Eprom.Data.Length, Ports[0xA0]);
+                        if (type == 6 && before == 0xC0 && after == 0xC2) Eprom.Erase();
                     }
                     break;
                 case 0xC2:

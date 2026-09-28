@@ -124,6 +124,7 @@
     <Compile Include="FormComConnection.cs" />
     <Compile Include="ISimulatedHardware.cs" />
     <Compile Include="Pkw3000Hardware.cs" />
+    <Compile Include="PkwEprom.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="FormAddresses.resx">
       <DependentUpon>FormAddresses.cs</DependentUpon>

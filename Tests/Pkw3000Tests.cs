@@ -91,6 +91,7 @@ static class Pkw3000Tests
             }
             Check(FormTerminal.NormalizeInput("X4\r\nABC\n\x16\x14") == "X4\rABC\r", "paste normalizes line endings and excludes shortcut/control artifacts");
             CpuRegression();
+            EpromRegression(args[0]);
             SerialRegression();
             var board = new Pkw3000Hardware();
             board.WritePort(0x6C, 0x70, 0); board.WritePort(0x6D, 0xD7, 0); board.WritePort(0x68, 0xC3, 0);
@@ -486,6 +487,58 @@ static class Pkw3000Tests
                 if ((hw.ReadPort(0xC2, start + (ulong)(i + 1) * bit + bit / 2) & 1) == 0) received |= 1 << i;
             Check(received == 'A', "8N2 RX bits at " + baud);
         }
+    }
+    static void EpromRegression(string romPath)
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "pkw-eprom-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try {
+            byte[] selectors = { 0x1C, 0x2C, 0x18, 0x28, 0x38, 0x14, 0x34 };
+            for (int type = 0; type < 7; type++) {
+                string path = Path.Combine(folder, type + (type % 2 == 0 ? ".hex" : ".bin"));
+                var chip = PkwEprom.Open(path, type); chip.Closed = true;
+                Check(chip.Data.All(b => b == 255), PkwEprom.Names[type] + " new image is erased");
+                var hw = new Pkw3000Hardware { SwitchInputs = selectors[type], Eprom = chip };
+                var cpu = new Assembler85(new string[0]) { Hardware = hw };
+                Array.Copy(File.ReadAllBytes(romPath), cpu.RAM, 8192); Run(cpu, 3000000);
+                Check(cpu.RAM[0x6069] == type, "ROM selects " + PkwEprom.Names[type]);
+                int address = chip.Data.Length - 1;
+                cpu.registerD = (byte)(address >> 8); cpu.registerE = (byte)address; cpu.registerC = 0xA5;
+                CallEpromRoutine(cpu, 0x10D8);
+                Check(chip.Data[address] == 0xA5 && chip.Dirty, "original ROM programs last byte of " + PkwEprom.Names[type]);
+                cpu.registerD = (byte)(address >> 8); cpu.registerE = (byte)address;
+                CallEpromRoutine(cpu, 0x106A);
+                Check(cpu.registerA == 0xA5, "original ROM reads " + PkwEprom.Names[type] + " through both comparators");
+                chip.Program(address, 0xFF);
+                Check(chip.Data[address] == 0xA5, "programming cannot restore erased bits");
+                chip.Save();
+                Check(!chip.Dirty && PkwEprom.Open(path, type).Data.SequenceEqual(chip.Data), "image survives save/reload " + Path.GetExtension(path));
+                chip.Closed = false;
+                cpu.registerD = (byte)(address >> 8); cpu.registerE = (byte)address;
+                CallEpromRoutine(cpu, 0x106A);
+                Check(cpu.registerA == 0xFF, "open lever disconnects chip");
+                chip.Program(address, 0); Check(chip.Data[address] == 0xA5, "open lever blocks programming");
+                chip.Closed = true;
+                if (type == 6) {
+                    hw.WritePort(0xC1, 0xC0, cpu.cycles); hw.WritePort(0xC1, 0xC2, cpu.cycles);
+                    Check(chip.Data.All(b => b == 255), "48016 erase pulse erases whole chip");
+                } else { chip.Erase(); Check(chip.Data[address] == 0xA5, "UV EPROM cannot be electrically erased"); }
+            }
+            string bad = Path.Combine(folder, "bad.hex");
+            File.WriteAllText(bad, ":01000000A500\n:00000001FF\n");
+            bool rejected = false; try { PkwEprom.Open(bad, 5); } catch (InvalidDataException) { rejected = true; }
+            Check(rejected, "bad HEX checksum rejected without changing file");
+            File.WriteAllText(bad, ":01080000A552\n:00000001FF\n");
+            rejected = false; try { PkwEprom.Open(bad, 5); } catch (InvalidDataException) { rejected = true; }
+            Check(rejected, "out-of-range HEX address rejected");
+        } finally { Directory.Delete(folder, true); }
+    }
+    static void CallEpromRoutine(Assembler85 cpu, ushort routine)
+    {
+        cpu.intrIE = false; cpu.registerSP = 0x60F0;
+        cpu.RAM[0x60F0] = 0; cpu.RAM[0x60F1] = 0x61; cpu.registerPC = routine;
+        int i = 0; while (cpu.registerPC != 0x6100 && i++ < 2000000) Step(cpu);
+        Check(cpu.registerPC == 0x6100, "ROM routine " + routine.ToString("X4") + " returns");
     }
     static void BufferRegression(Assembler85 cpu, Pkw3000Hardware hw)
     {
