@@ -11,6 +11,9 @@ namespace _8085
         private Pkw3000Hardware pkwBoard;
         private FormPkw3000 pkwWindow;
         private ToolStripMenuItem sdkMenu, pkwMenu;
+        internal Func<bool> ConfirmFirmwareSource;
+        internal Func<bool> ConfirmReplaceSource;
+
         private void InitializeHardwareSelection()
         {
             // Give the menu its own row, keeping existing debugger controls below it.
@@ -23,7 +26,20 @@ namespace _8085
             sdkMenu = new ToolStripMenuItem("SDK-85") { Checked = true };
             pkwMenu = new ToolStripMenuItem("PKW-3000");
             sdkMenu.Click += (s, e) => SelectHardware(false);
-            pkwMenu.Click += (s, e) => SelectHardware(true);
+            ConfirmFirmwareSource = () => MessageBox.Show(this,
+                "Load the adapted PKW-3000 firmware source?\n\nBased on Edgar's original-ROM disassembly, adapted for this simulator.\n\nChanges: \"Hellorld!\" terminal greeting, ASCII Hex Space transfer format, and printable S/X start/end markers.",
+                "PKW-3000", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+            ConfirmReplaceSource = () => MessageBox.Show(this,
+                "This will replace your current ASM source. Continue?",
+                "PKW-3000", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) == DialogResult.OK;
+            pkwMenu.Click += (s, e) => {
+                if (pkwSelected) return;
+                SelectHardware(true);
+                if (!ConfirmFirmwareSource()) return;
+                if (richTextBoxProgram.TextLength != 0 && !ConfirmReplaceSource()) return;
+                try { LoadAdaptedFirmwareSource(); }
+                catch (Exception ex) { MessageBox.Show(this, ex.Message, "Firmware source", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            };
             menu.DropDownItems.AddRange(new ToolStripItem[] { sdkMenu, pkwMenu }); menuStrip.Items.Add(menu);
             FormClosed += (s, e) => { formTerminal?.Close(); formSDK_85?.Close(); pkwWindow?.Close(); };
             FormClosing += (s, e) => {
@@ -31,6 +47,20 @@ namespace _8085
                 catch (Exception ex) { e.Cancel = true; MessageBox.Show(this, "Could not save the EP-ROM file:\n" + ex.Message, "EPROM", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             };
             ResumeLayout(true);
+        }
+        internal static string ReadAdaptedFirmwareSource()
+        {
+            using (var stream = typeof(MainForm).Assembly.GetManifestResourceStream("pkw2_8085.asm"))
+            using (var reader = new StreamReader(stream)) return reader.ReadToEnd();
+        }
+        private void LoadAdaptedFirmwareSource()
+        {
+            string source = ReadAdaptedFirmwareSource();
+            stop_Click(this, EventArgs.Empty);
+            sourceFile = ""; // Save As must not overwrite the user's previous source file.
+            lineBreakPoint = -1;
+            richTextBoxProgram.Text = source;
+            startDebug_Click(this, EventArgs.Empty);
         }
         private void SelectHardware(bool pkw)
         {

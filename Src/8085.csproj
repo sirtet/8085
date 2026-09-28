@@ -208,6 +208,7 @@
   <ItemGroup><EmbeddedResource Include="Resources\pkw-panel.png"><LogicalName>pkw-panel.png</LogicalName></EmbeddedResource></ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
+    <EmbeddedResource Include="Resources\pkw2_8085.asm"><LogicalName>pkw2_8085.asm</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="Resources\pkw-socket-photo-24-closed.png"><LogicalName>pkw-socket-photo-24-closed.png</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="Resources\pkw-socket-photo-24-open.png"><LogicalName>pkw-socket-photo-24-open.png</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="Resources\pkw-socket-photo-28-closed.png"><LogicalName>pkw-socket-photo-28-closed.png</LogicalName></EmbeddedResource>
