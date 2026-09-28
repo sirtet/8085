@@ -4,6 +4,8 @@
 
 This simulator is part of the [PKW-3000 project](https://github.com/sirtet/pkw-3000), which contains firmware sources, hardware documentation and research on the original EP-ROM programmer.
 
+![PKW-3000 front panel and 8085 debugger](ScreenShot.png)
+
 ## Download and run
 
 Download **pkw-sim-v0.1.zip** from the [releases page](https://github.com/sirtet/8085/releases). Extract the entire ZIP and run **pkw-3000-emulator.exe**.
